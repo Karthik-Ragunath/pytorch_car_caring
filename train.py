@@ -38,8 +38,8 @@ class Env():
     """
 
     def __init__(self):
-        self.env = gym.make('CarRacing-v0')
-        self.env.seed(args.seed)
+        self.env = gym.make('CarRacing-v2')
+        # self.env.seed(args.seed)
         self.reward_threshold = self.env.spec.reward_threshold
 
     def reset(self):
