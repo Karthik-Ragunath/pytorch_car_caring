@@ -55,7 +55,7 @@ class Env():
     def step(self, action):
         total_reward = 0
         for i in range(args.action_repeat):
-            img_rgb, reward, die, _ = self.env.step(action)
+            img_rgb, reward, die, _, _ = self.env.step(action)
             # don't penalize "die state"
             if die:
                 reward += 100
