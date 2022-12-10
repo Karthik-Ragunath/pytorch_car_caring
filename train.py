@@ -175,7 +175,7 @@ class Agent():
         return action, a_logp
 
     def save_param(self):
-        torch.save(self.net.state_dict(), 'param/ppo_net_params.pkl')
+        torch.save(self.net.state_dict(), 'param/ppo_net_params_trained.pkl')
 
     def store(self, transition):
         self.buffer[self.counter] = transition
