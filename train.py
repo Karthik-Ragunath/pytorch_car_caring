@@ -47,7 +47,7 @@ class Env():
         self.av_r = self.reward_memory()
 
         self.die = False
-        img_rgb = self.env.reset()
+        img_rgb = self.env.reset()[0]
         img_gray = self.rgb2gray(img_rgb)
         self.stack = [img_gray] * args.img_stack  # four frames for decision
         return np.array(self.stack)
