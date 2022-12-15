@@ -26,7 +26,10 @@ class Env():
     """
 
     def __init__(self):
-        self.env = gym.make('CarRacing-v0')
+        if args.render:
+            self.env = gym.make('CarRacing-v2', render_mode="human")
+        else:
+            self.env = gym.make('CarRacing-v2')
         self.env.seed(args.seed)
         self.reward_threshold = self.env.spec.reward_threshold
 
@@ -35,7 +38,7 @@ class Env():
         self.av_r = self.reward_memory()
 
         self.die = False
-        img_rgb = self.env.reset()
+        img_rgb = self.env.reset()[0]
         img_gray = self.rgb2gray(img_rgb)
         self.stack = [img_gray] * args.img_stack
         return np.array(self.stack)
@@ -43,7 +46,7 @@ class Env():
     def step(self, action):
         total_reward = 0
         for i in range(args.action_repeat):
-            img_rgb, reward, die, _ = self.env.step(action)
+            img_rgb, reward, die, _, _ = self.env.step(action)
             # don't penalize "die state"
             if die:
                 reward += 100
