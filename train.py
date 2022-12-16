@@ -187,7 +187,7 @@ class Agent():
         return action, a_logp
 
     def save_param(self):
-        torch.save(self.net.state_dict(), 'param/ppo_net_params_trained.pkl')
+        torch.save(self.net.state_dict(), 'param/ppo_net_params_model_trained.pkl')
     
     def save_checkpoint_reward(self, episode):
         torch.save(self.net.state_dict(), f"param/reward_checkpoint_{episode}.pkl")
@@ -278,7 +278,7 @@ if __name__ == "__main__":
             agent.save_checkpoint_running_score(i_ep)
 
         LOGGER.info('Ep {}\tLast score: {:.2f}\tMoving average score: {:.2f}'.format(i_ep, score, running_score))
-        
+
         if i_ep % args.log_interval == 0:
             if args.vis:
                 draw_reward(xdata=i_ep, ydata=running_score)
