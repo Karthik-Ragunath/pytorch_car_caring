@@ -13,7 +13,9 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
-                // "--render"
+                // "--render",
+                "--device_id",
+                "1"
             ]
         }
     ]
