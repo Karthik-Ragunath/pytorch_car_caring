@@ -152,7 +152,8 @@ class Agent():
         return action
 
     def load_param(self):
-        self.net.load_state_dict(torch.load('param/ppo_net_params_trained.pkl'))
+        # self.net.load_state_dict(torch.load('param/ppo_net_params_trained.pkl'))
+        self.net.load_state_dict(torch.load('param/run_score_checkpoint_1283.pkl'))
 
 
 if __name__ == "__main__":
