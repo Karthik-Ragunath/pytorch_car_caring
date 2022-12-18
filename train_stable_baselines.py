@@ -3,6 +3,7 @@ import argparse
 import numpy as np
 
 import gym
+from stable_baselines3 import PPO
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -11,6 +12,11 @@ from torch.distributions import Beta
 from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
 from utils import DrawLine
 import logging
+from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
+from stable_baselines3.common.policies import ActorCriticPolicy
+from typing import Callable, Dict, List, Optional, Tuple, Type, Union
+from stable_baselines3.common.callbacks import BaseCallback
+import os
 
 parser = argparse.ArgumentParser(description='Train a PPO agent for the CarRacing-v0')
 parser.add_argument('--gamma', type=float, default=0.99, metavar='G', help='discount factor (default: 0.99)')
@@ -111,9 +117,6 @@ class Env():
             return np.mean(history)
 
         return memory
-    
-    def close():
-        self.env.close()
 
 
 class Net(nn.Module):
@@ -159,134 +162,108 @@ class Net(nn.Module):
 
         return (alpha, beta), v
 
+class CustomCallBack(BaseCallback):
+    """Custom CallBack Class."""
+    def __init__(self, check_freq: int, log_dir: str, verbose=1):
+        super(CustomCallBack, self).__init__(verbose)
+        self.check_freq = check_freq
+        self.log_dir = log_dir
+        self.save_path = os.path.join(log_dir, 'best_model')
+        self.best_mean_reward = -np.inf
 
-class Agent():
-    """
-    Agent for training
-    """
-    max_grad_norm = 0.5
-    clip_param = 0.1  # epsilon in clipped loss
-    ppo_epoch = 10
-    buffer_capacity, batch_size = 2000, 128
+    def _init_callback(self) -> None:
+        """Init callback function."""
+        if not os.path.exists(self.save_path):
+            os.makedirs(self.save_path)
 
+    def _on_training_start(self) -> None:
+        pass
+
+    def _on_training_end(self) -> None:
+        pass
+
+    def _on_step(self) -> bool:
+        """Return False to abort training early."""
+        return True
+
+
+class CustomNetwork(nn.Module):
+    """
+    Actor Critic Network For PPO.
+    """
     def __init__(self):
-        self.training_step = 0
-        self.net = Net().double().to(device)
-        self.buffer = np.empty(self.buffer_capacity, dtype=transition)
-        self.counter = 0
+        super(CustomNetwork, self).__init__()
+        self.cnn_base = nn.Sequential(  # input shape (4, 96, 96)
+            nn.Conv2d(args.img_stack, 8, kernel_size=4, stride=2),
+            nn.ReLU(),  # activation
+            nn.Conv2d(8, 16, kernel_size=3, stride=2),  # (8, 47, 47)
+            nn.ReLU(),  # activation
+            nn.Conv2d(16, 32, kernel_size=3, stride=2),  # (16, 23, 23)
+            nn.ReLU(),  # activation
+            nn.Conv2d(32, 64, kernel_size=3, stride=2),  # (32, 11, 11)
+            nn.ReLU(),  # activation
+            nn.Conv2d(64, 128, kernel_size=3, stride=1),  # (64, 5, 5)
+            nn.ReLU(),  # activation
+            nn.Conv2d(128, 256, kernel_size=3, stride=1),  # (128, 3, 3)
+            nn.ReLU(),  # activation
+        )
+        self.v = nn.Sequential(nn.Linear(256, 100), nn.ReLU(), nn.Linear(100, 1))
+        self.fc = nn.Sequential(nn.Linear(256, 100), nn.ReLU())
+        self.alpha_head = nn.Sequential(nn.Linear(100, 3), nn.Softplus())
+        self.beta_head = nn.Sequential(nn.Linear(100, 3), nn.Softplus())
+        self.apply(self._weights_init)
 
-        self.optimizer = optim.Adam(self.net.parameters(), lr=1e-3)
+    @staticmethod
+    def _weights_init(m):
+        if isinstance(m, nn.Conv2d):
+            nn.init.xavier_uniform_(m.weight, gain=nn.init.calculate_gain('relu'))
+            nn.init.constant_(m.bias, 0.1)
 
-    def select_action(self, state):
-        state = torch.from_numpy(state).double().to(device).unsqueeze(0)
-        with torch.no_grad():
-            alpha, beta = self.net(state)[0]
-        dist = Beta(alpha, beta)
-        action = dist.sample()
-        a_logp = dist.log_prob(action).sum(dim=1)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.cnn_base(x)
+        x = x.view(-1, 256)
+        v = self.v(x)
+        x = self.fc(x)
+        alpha = self.alpha_head(x) + 1
+        beta = self.beta_head(x) + 1
 
-        action = action.squeeze().cpu().numpy()
-        a_logp = a_logp.item()
-        return action, a_logp
+        return (alpha, beta), v
 
-    def save_param(self):
-        torch.save(self.net.state_dict(), 'param/ppo_net_params_model_trained.pkl')
-    
-    def save_checkpoint_reward(self, episode):
-        torch.save(self.net.state_dict(), f"param/reward_checkpoint_{episode}.pkl")
+class CustomActorCriticPolicy(ActorCriticPolicy):
+    def __init__(
+        self,
+        observation_space: gym.spaces.Space,
+        action_space: gym.spaces.Space,
+        lr_schedule: Callable[[float], float],
+        net_arch: Optional[List[Union[int, Dict[str, List[int]]]]] = None,
+        activation_fn: Type[nn.Module] = nn.Tanh,
+        *args,
+        **kwargs,
+    ):
 
-    def save_checkpoint_running_score(self, episode):
-        torch.save(self.net.state_dict(), f"param/run_score_checkpoint_{episode}.pkl")
+        super(CustomActorCriticPolicy, self).__init__(
+            observation_space,
+            action_space,
+            lr_schedule,
+            net_arch,
+            activation_fn,
+            # Pass remaining arguments to base class
+            *args,
+            **kwargs,
+        )
+        # Disable orthogonal initialization
+        self.ortho_init = False
 
-    def store(self, transition):
-        self.buffer[self.counter] = transition
-        self.counter += 1
-        if self.counter == self.buffer_capacity:
-            self.counter = 0
-            return True
-        else:
-            return False
-
-    def update(self):
-        self.training_step += 1
-
-        s = torch.tensor(self.buffer['s'], dtype=torch.double).to(device)
-        a = torch.tensor(self.buffer['a'], dtype=torch.double).to(device)
-        r = torch.tensor(self.buffer['r'], dtype=torch.double).to(device).view(-1, 1)
-        s_ = torch.tensor(self.buffer['s_'], dtype=torch.double).to(device)
-
-        old_a_logp = torch.tensor(self.buffer['a_logp'], dtype=torch.double).to(device).view(-1, 1)
-
-        with torch.no_grad():
-            target_v = r + args.gamma * self.net(s_)[1]
-            adv = target_v - self.net(s)[1]
-            # adv = (adv - adv.mean()) / (adv.std() + 1e-8)
-
-        for _ in range(self.ppo_epoch):
-            for index in BatchSampler(SubsetRandomSampler(range(self.buffer_capacity)), self.batch_size, False):
-
-                alpha, beta = self.net(s[index])[0]
-                dist = Beta(alpha, beta)
-                a_logp = dist.log_prob(a[index]).sum(dim=1, keepdim=True)
-                ratio = torch.exp(a_logp - old_a_logp[index])
-
-                surr1 = ratio * adv[index]
-                surr2 = torch.clamp(ratio, 1.0 - self.clip_param, 1.0 + self.clip_param) * adv[index]
-                action_loss = -torch.min(surr1, surr2).mean()
-                value_loss = F.smooth_l1_loss(self.net(s[index])[1], target_v[index])
-                loss = action_loss + 2. * value_loss
-
-                self.optimizer.zero_grad()
-                loss.backward()
-                # nn.utils.clip_grad_norm_(self.net.parameters(), self.max_grad_norm)
-                self.optimizer.step()
-
+    def _build_mlp_extractor(self) -> None:
+        self.mlp_extractor = CustomNetwork(self.features_dim)
 
 if __name__ == "__main__":
-    agent = Agent()
+    # env_id = "CarRacing-v2"
     env = Env()
-    if args.vis:
-        draw_reward = DrawLine(env="car", title="PPO", xlabel="Episode", ylabel="Moving averaged episode reward")
-
-    training_records = []
-    running_score = 0
-    state = env.reset()
-    best_episode_reward = 0
-    best_episode_running_score = 0
-    LOGGER.info("start training")
-    for i_ep in range(100000):
-        score = 0
-        state = env.reset()
-
-        for t in range(1000):
-            action, a_logp = agent.select_action(state)
-            state_, reward, done, die = env.step(action * np.array([2., 1., 1.]) + np.array([-1., 0., 0.]))
-            if args.render:
-                env.render()
-            if agent.store((state, action, a_logp, reward, state_)):
-                print('updating')
-                agent.update()
-            score += reward
-            state = state_
-            if done or die:
-                break
-        running_score = running_score * 0.99 + score * 0.01
-
-        if score > best_episode_reward:
-            best_episode_reward = score
-            agent.save_checkpoint_reward(i_ep)
-
-        if running_score > best_episode_running_score:
-            best_episode_running_score = running_score
-            agent.save_checkpoint_running_score(i_ep)
-
-        LOGGER.info('Ep {}\tLast score: {:.2f}\tMoving average score: {:.2f}'.format(i_ep, score, running_score))
-
-        if i_ep % args.log_interval == 0:
-            if args.vis:
-                draw_reward(xdata=i_ep, ydata=running_score)
-            print('Ep {}\tLast score: {:.2f}\tMoving average score: {:.2f}'.format(i_ep, score, running_score))
-            agent.save_param()
-        if running_score > env.reward_threshold:
-            print("Solved! Running reward is now {} and the last episode runs to {}!".format(running_score, score))
-            break
+    model = PPO(
+        CustomActorCriticPolicy(
+            observation_space=env.env.observation_space, 
+            action_space=env.env.action_space,
+            lr_schedule=1e-3
+        ), env, verbose=1)
+    model.learn(total_timesteps=10000)
