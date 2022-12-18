@@ -275,3 +275,15 @@ if __name__ == "__main__":
             lr_schedule=1e-3
         ), env, verbose=1)
     model.learn(total_timesteps=10000)
+    if os.path.exists('sb3_files'):
+        os.makedirs('sb3_files')
+    
+    entire_model_save_path = os.path.join('sb3_files', 'entire_model')
+    if not os.path.exists(entire_model_save_path):
+        os.makedirs(entire_model_save_path)       
+    model.save(entire_model_save_path)
+
+    state_dict_save_path = os.path.join('sb3_files', 'state_dict')
+    if not os.path.exists(state_dict_save_path):
+        os.makedirs(state_dict_save_path)
+    torch.save(model.state_dict(), os.path.join(state_dict_save_path, 'ppo_net_params_model_trained.pkl'))
