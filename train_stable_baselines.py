@@ -184,6 +184,7 @@ class CustomCallBack(BaseCallback):
 
     def _on_step(self) -> bool:
         """Return False to abort training early."""
+        # self.locals - gives local variables in a dictionary
         return True
 
 
