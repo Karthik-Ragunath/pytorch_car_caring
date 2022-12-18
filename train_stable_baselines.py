@@ -208,7 +208,8 @@ class CustomNetwork(nn.Module):
             nn.Conv2d(128, 256, kernel_size=3, stride=1),  # (128, 3, 3)
             nn.ReLU(),  # activation
         )
-        self.v = nn.Sequential(nn.Linear(256, 100), nn.ReLU(), nn.Linear(100, 1))
+        self.v_latent = nn.Sequential(nn.Linear(256, 100), nn.ReLU())
+        self.v = nn.Linear(100, 1)
         self.fc = nn.Sequential(nn.Linear(256, 100), nn.ReLU())
         self.alpha_head = nn.Sequential(nn.Linear(100, 3), nn.Softplus())
         self.beta_head = nn.Sequential(nn.Linear(100, 3), nn.Softplus())
@@ -221,14 +222,20 @@ class CustomNetwork(nn.Module):
             nn.init.constant_(m.bias, 0.1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
         x = self.cnn_base(x)
         x = x.view(-1, 256)
         v = self.v(x)
         x = self.fc(x)
         alpha = self.alpha_head(x) + 1
         beta = self.beta_head(x) + 1
-
         return (alpha, beta), v
+        """
+        x = self.cnn_base(x)
+        x = x.view(-1, 256)
+        critic_latent = self.v_latent(x)
+        actor_latent = self.fc(x)
+        return actor_latent, critic_latent
 
 class CustomActorCriticPolicy(ActorCriticPolicy):
     def __init__(

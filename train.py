@@ -112,7 +112,7 @@ class Env():
 
         return memory
     
-    def close():
+    def close(self):
         self.env.close()
 
 
