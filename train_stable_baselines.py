@@ -54,9 +54,9 @@ class Env():
 
     def __init__(self):
         if args.render:
-            self.env = gym.make('CarRacing-v2', render_mode="human")
+            self.env = gym.make('CarRacing-v0', render_mode="human")
         else:
-            self.env = gym.make('CarRacing-v2')
+            self.env = gym.make('CarRacing-v0')
         # self.env.seed(args.seed)
         self.reward_threshold = self.env.spec.reward_threshold
 
@@ -93,6 +93,9 @@ class Env():
 
     def render(self, *arg):
         self.env.render(*arg)
+
+    def close(self):
+        self.env.close()
 
     @staticmethod
     def rgb2gray(rgb, norm=True):

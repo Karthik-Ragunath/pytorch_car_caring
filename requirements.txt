@@ -1,0 +1,6 @@
+conda install pytorch torchvision torchaudio pytorch-cuda=11.6 -c pytorch -c nvidia
+pip install gym[box2d]
+pip install stable-baselines3[extra]
+pygame
+opencv-python
+matplotlib
