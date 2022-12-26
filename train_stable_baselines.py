@@ -195,7 +195,7 @@ class CustomNetwork(nn.Module):
     """
     Actor Critic Network For PPO.
     """
-    def __init__(self):
+    def __init__(self, features_dim):
         super(CustomNetwork, self).__init__()
         self.cnn_base = nn.Sequential(  # input shape (4, 96, 96)
             nn.Conv2d(args.img_stack, 8, kernel_size=4, stride=2),
@@ -211,6 +211,8 @@ class CustomNetwork(nn.Module):
             nn.Conv2d(128, 256, kernel_size=3, stride=1),  # (128, 3, 3)
             nn.ReLU(),  # activation
         )
+        self.latent_dim_pi = 100
+        self.latent_dim_vf = 100
         self.v_latent = nn.Sequential(nn.Linear(256, 100), nn.ReLU())
         self.v = nn.Linear(100, 1)
         self.fc = nn.Sequential(nn.Linear(256, 100), nn.ReLU())
@@ -268,6 +270,25 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
     def _build_mlp_extractor(self) -> None:
         self.mlp_extractor = CustomNetwork(self.features_dim)
 
+def linear_schedule(initial_value: float) -> Callable[[float], float]:
+    """
+    Linear learning rate schedule.
+
+    :param initial_value: Initial learning rate.
+    :return: schedule that computes
+      current learning rate depending on remaining progress
+    """
+    def func(progress_remaining: float) -> float:
+        """
+        Progress will decrease from 1 (beginning) to 0.
+
+        :param progress_remaining:
+        :return: current learning rate
+        """
+        return progress_remaining * initial_value
+
+    return func
+
 if __name__ == "__main__":
     # env_id = "CarRacing-v2"
     env = Env()
@@ -275,7 +296,7 @@ if __name__ == "__main__":
         CustomActorCriticPolicy(
             observation_space=env.env.observation_space, 
             action_space=env.env.action_space,
-            lr_schedule=1e-3
+            lr_schedule=linear_schedule(1e-3)
         ), env, verbose=1)
     model.learn(total_timesteps=10000)
     if os.path.exists('sb3_files'):
