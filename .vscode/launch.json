@@ -25,7 +25,7 @@
             "program": "${workspaceFolder}/train_stable_baselines.py",
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal",
-            "justMyCode": true,
+            "justMyCode": false,
             "args": [
                 // "--render",
                 "--device_id",

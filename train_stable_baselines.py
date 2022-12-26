@@ -47,18 +47,22 @@ formatter = logging.Formatter('%(name)s %(message)s')
 handler.setFormatter(formatter)
 LOGGER.addHandler(handler)
 
-class Env():
+# class Env(gym.Env):
+class Env(gym.Env):
     """
     Environment wrapper for CarRacing 
     """
 
     def __init__(self):
+        # super(Env, self).__init__()
         if args.render:
             self.env = gym.make('CarRacing-v0', render_mode="human")
         else:
             self.env = gym.make('CarRacing-v0')
         # self.env.seed(args.seed)
         self.reward_threshold = self.env.spec.reward_threshold
+        self.observation_space = self.env.observation_space
+        self.action_space = self.env.action_space
 
     def reset(self):
         self.counter = 0
@@ -248,6 +252,7 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
         observation_space: gym.spaces.Space,
         action_space: gym.spaces.Space,
         lr_schedule: Callable[[float], float],
+        # use_sde: bool,
         net_arch: Optional[List[Union[int, Dict[str, List[int]]]]] = None,
         activation_fn: Type[nn.Module] = nn.Tanh,
         *args,
@@ -258,6 +263,7 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
             observation_space,
             action_space,
             lr_schedule,
+            # use_sde,
             net_arch,
             activation_fn,
             # Pass remaining arguments to base class
@@ -296,8 +302,9 @@ if __name__ == "__main__":
         CustomActorCriticPolicy(
             observation_space=env.env.observation_space, 
             action_space=env.env.action_space,
-            lr_schedule=linear_schedule(1e-3)
-        ), env, verbose=1)
+            lr_schedule=linear_schedule(1e-3),
+            # use_sde=False
+        ), env, use_sde=False, verbose=1)
     model.learn(total_timesteps=10000)
     if os.path.exists('sb3_files'):
         os.makedirs('sb3_files')
