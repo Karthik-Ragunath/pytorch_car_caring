@@ -52,11 +52,12 @@ class Env(gym.Env):
     """
     Environment wrapper for CarRacing 
     """
-
+    metadata = {"render.modes": ["human", "rgb_array"]}
     def __init__(self):
         # super(Env, self).__init__()
         if args.render:
-            self.env = gym.make('CarRacing-v0', render_mode="human")
+            self.env = gym.make('CarRacing-v0')
+            self.env.render("rgb_array")
         else:
             self.env = gym.make('CarRacing-v0')
         # self.env.seed(args.seed)
@@ -259,7 +260,7 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
         **kwargs,
     ):
 
-        super(CustomActorCriticPolicy, self).__init__(
+        super().__init__(
             observation_space,
             action_space,
             lr_schedule,
@@ -298,13 +299,17 @@ def linear_schedule(initial_value: float) -> Callable[[float], float]:
 if __name__ == "__main__":
     # env_id = "CarRacing-v2"
     env = Env()
+    '''
     model = PPO(
         CustomActorCriticPolicy(
             observation_space=env.env.observation_space, 
             action_space=env.env.action_space,
             lr_schedule=linear_schedule(1e-3),
-            # use_sde=False
-        ), env, use_sde=False, verbose=1)
+            use_sde=False
+        ), env, verbose=1)
+        # ), env, use_sde=False, verbose=1)
+    '''
+    model = PPO(CustomActorCriticPolicy, env, verbose=1)
     model.learn(total_timesteps=10000)
     if os.path.exists('sb3_files'):
         os.makedirs('sb3_files')

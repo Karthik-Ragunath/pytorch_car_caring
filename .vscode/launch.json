@@ -24,13 +24,28 @@
             "request": "launch",
             "program": "${workspaceFolder}/train_stable_baselines.py",
             "cwd": "${workspaceFolder}",
-            "console": "integratedTerminal",
+            // "console": "integratedTerminal",
+            "console": "internalConsole",
             "justMyCode": false,
             "args": [
                 // "--render",
                 "--device_id",
                 "1"
             ]
+        },
+        {
+            "name": "direct_example",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/example_custom.py",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false
+            // "args": [
+            //     // "--render",
+            //     "--device_id",
+            //     "1"
+            // ]
         }
     ]
 }
