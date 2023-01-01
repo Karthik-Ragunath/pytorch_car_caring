@@ -15,7 +15,9 @@
             "args": [
                 // "--render",
                 "--device_id",
-                "1"
+                "1",
+                "--img-stack",
+                "3"
             ]
         },
         {

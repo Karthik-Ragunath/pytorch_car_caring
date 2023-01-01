@@ -70,15 +70,15 @@ class Env(gym.Env):
         self.av_r = self.reward_memory()
 
         self.die = False
-        img_rgb = self.env.reset()[0]
+        img_rgb = self.env.reset()
         img_gray = self.rgb2gray(img_rgb)
         self.stack = [img_gray] * args.img_stack  # four frames for decision
-        return np.array(self.stack)
+        return np.array(self.stack).transpose(1,2,0)
 
     def step(self, action):
         total_reward = 0
         for i in range(args.action_repeat):
-            img_rgb, reward, die, _, _ = self.env.step(action)
+            img_rgb, reward, die, info = self.env.step(action)
             # don't penalize "die state"
             if die:
                 reward += 100
@@ -94,7 +94,7 @@ class Env(gym.Env):
         self.stack.pop(0)
         self.stack.append(img_gray)
         assert len(self.stack) == args.img_stack
-        return np.array(self.stack), total_reward, done, die
+        return np.array(self.stack).transpose(1,2,0), total_reward, die and done, info
 
     def render(self, *arg):
         self.env.render(*arg)
@@ -126,6 +126,40 @@ class Env(gym.Env):
 
         return memory
 
+class CustomCNN(BaseFeaturesExtractor):
+    """
+    :param observation_space: (gym.Space)
+    :param features_dim: (int) Number of features extracted.
+        This corresponds to the number of unit for the last layer.
+    """
+
+    def __init__(self, observation_space: gym.spaces.Box, features_dim: int = 256):
+        super().__init__(observation_space, features_dim)
+        # We assume CxHxW images (channels first)
+        # Re-ordering will be done by pre-preprocessing or wrapper
+        n_input_channels = args.img_stack
+        self.cnn_base = nn.Sequential(  # input shape (4, 96, 96)
+            nn.Conv2d(n_input_channels, 8, kernel_size=4, stride=2),
+            nn.ReLU(),  # activation
+            nn.Conv2d(8, 16, kernel_size=3, stride=2),  # (8, 47, 47)
+            nn.ReLU(),  # activation
+            nn.Conv2d(16, 32, kernel_size=3, stride=2),  # (16, 23, 23)
+            nn.ReLU(),  # activation
+            nn.Conv2d(32, 64, kernel_size=3, stride=2),  # (32, 11, 11)
+            nn.ReLU(),  # activation
+            nn.Conv2d(64, 128, kernel_size=3, stride=1),  # (64, 5, 5)
+            nn.ReLU(),  # activation
+            nn.Conv2d(128, features_dim, kernel_size=3, stride=1),  # (128, 3, 3)
+            nn.ReLU(),  # activation
+        )  # output shape (256, 1, 1)
+
+    def forward(self, observations: torch.Tensor) -> torch.Tensor:
+        return self.cnn_base(observations)
+
+policy_kwargs = dict(
+    features_extractor_class=CustomCNN,
+    features_extractor_kwargs=dict(features_dim=256),
+)
 
 class Net(nn.Module):
     """
@@ -195,15 +229,21 @@ class CustomCallBack(BaseCallback):
         # self.locals - gives local variables in a dictionary
         return True
 
+# -----------------------------------------------------------------------------------
+class CustomCNN(BaseFeaturesExtractor):
+    """
+    :param observation_space: (gym.Space)
+    :param features_dim: (int) Number of features extracted.
+        This corresponds to the number of unit for the last layer.
+    """
 
-class CustomNetwork(nn.Module):
-    """
-    Actor Critic Network For PPO.
-    """
-    def __init__(self, features_dim):
-        super(CustomNetwork, self).__init__()
+    def __init__(self, observation_space: gym.spaces.Box, features_dim: int = 256):
+        super().__init__(observation_space, features_dim)
+        # We assume CxHxW images (channels first)
+        # Re-ordering will be done by pre-preprocessing or wrapper
+        n_input_channels = args.img_stack
         self.cnn_base = nn.Sequential(  # input shape (4, 96, 96)
-            nn.Conv2d(args.img_stack, 8, kernel_size=4, stride=2),
+            nn.Conv2d(n_input_channels, 8, kernel_size=4, stride=2),
             nn.ReLU(),  # activation
             nn.Conv2d(8, 16, kernel_size=3, stride=2),  # (8, 47, 47)
             nn.ReLU(),  # activation
@@ -213,9 +253,20 @@ class CustomNetwork(nn.Module):
             nn.ReLU(),  # activation
             nn.Conv2d(64, 128, kernel_size=3, stride=1),  # (64, 5, 5)
             nn.ReLU(),  # activation
-            nn.Conv2d(128, 256, kernel_size=3, stride=1),  # (128, 3, 3)
+            nn.Conv2d(128, features_dim, kernel_size=3, stride=1),  # (128, 3, 3)
             nn.ReLU(),  # activation
-        )
+        )  # output shape (256, 1, 1)
+
+    def forward(self, observations: torch.Tensor) -> torch.Tensor:
+        return self.cnn_base(observations)
+
+
+class CustomNetwork(nn.Module):
+    """
+    Actor Critic Network For PPO.
+    """
+    def __init__(self, features_dim):
+        super(CustomNetwork, self).__init__()
         self.latent_dim_pi = 100
         self.latent_dim_vf = 100
         self.v_latent = nn.Sequential(nn.Linear(256, 100), nn.ReLU())
@@ -241,7 +292,7 @@ class CustomNetwork(nn.Module):
         beta = self.beta_head(x) + 1
         return (alpha, beta), v
         """
-        x = self.cnn_base(x)
+        # x = self.cnn_base(x)
         x = x.view(-1, 256)
         critic_latent = self.v_latent(x)
         actor_latent = self.fc(x)
@@ -309,7 +360,11 @@ if __name__ == "__main__":
         ), env, verbose=1)
         # ), env, use_sde=False, verbose=1)
     '''
-    model = PPO(CustomActorCriticPolicy, env, verbose=1)
+    policy_kwargs = dict(
+        features_extractor_class=CustomCNN,
+        features_extractor_kwargs=dict(features_dim=256),
+    )
+    model = PPO(CustomActorCriticPolicy, env, policy_kwargs=policy_kwargs, verbose=1)
     model.learn(total_timesteps=10000)
     if os.path.exists('sb3_files'):
         os.makedirs('sb3_files')
