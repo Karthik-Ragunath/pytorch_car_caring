@@ -94,7 +94,7 @@ class Env(gym.Env):
         self.stack.pop(0)
         self.stack.append(img_gray)
         assert len(self.stack) == args.img_stack
-        return np.array(self.stack).transpose(1,2,0), total_reward, die and done, info
+        return np.array(self.stack).transpose(1,2,0), total_reward, die or done, info
 
     def render(self, *arg):
         self.env.render(*arg)
@@ -255,10 +255,12 @@ class CustomCNN(BaseFeaturesExtractor):
             nn.ReLU(),  # activation
             nn.Conv2d(128, features_dim, kernel_size=3, stride=1),  # (128, 3, 3)
             nn.ReLU(),  # activation
+            nn.Flatten(),
         )  # output shape (256, 1, 1)
+        self.linear = nn.Sequential(nn.Linear(features_dim, features_dim), nn.ReLU())
 
     def forward(self, observations: torch.Tensor) -> torch.Tensor:
-        return self.cnn_base(observations)
+        return self.linear(self.cnn_base(observations))
 
 
 class CustomNetwork(nn.Module):
@@ -270,10 +272,7 @@ class CustomNetwork(nn.Module):
         self.latent_dim_pi = 100
         self.latent_dim_vf = 100
         self.v_latent = nn.Sequential(nn.Linear(256, 100), nn.ReLU())
-        self.v = nn.Linear(100, 1)
         self.fc = nn.Sequential(nn.Linear(256, 100), nn.ReLU())
-        self.alpha_head = nn.Sequential(nn.Linear(100, 3), nn.Softplus())
-        self.beta_head = nn.Sequential(nn.Linear(100, 3), nn.Softplus())
         self.apply(self._weights_init)
 
     @staticmethod
@@ -293,10 +292,15 @@ class CustomNetwork(nn.Module):
         return (alpha, beta), v
         """
         # x = self.cnn_base(x)
-        x = x.view(-1, 256)
-        critic_latent = self.v_latent(x)
-        actor_latent = self.fc(x)
-        return actor_latent, critic_latent
+        # x = x.view(-1, 256)
+        # print('*'*50, x.shape, '*'*50)
+        return self.forward_actor(x), self.forward_critic(x)
+
+    def forward_actor(self, x: torch.tensor) -> torch.tensor:
+        return self.fc(x)
+
+    def forward_critic(self, x: torch.tensor) -> torch.tensor:
+        return self.v_latent(x)
 
 class CustomActorCriticPolicy(ActorCriticPolicy):
     def __init__(
