@@ -11,6 +11,7 @@ from torch.distributions import Beta
 from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
 from utils import DrawLine
 import logging
+from torch.utils.tensorboard import SummaryWriter
 
 parser = argparse.ArgumentParser(description='Train a PPO agent for the CarRacing-v0')
 parser.add_argument('--gamma', type=float, default=0.99, metavar='G', help='discount factor (default: 0.99)')
@@ -240,6 +241,7 @@ class Agent():
 
 
 if __name__ == "__main__":
+    writer = SummaryWriter()
     agent = Agent()
     env = Env()
     if args.vis:
@@ -251,7 +253,7 @@ if __name__ == "__main__":
     best_episode_reward = 0
     best_episode_running_score = 0
     LOGGER.info("start training")
-    for i_ep in range(100000):
+    for i_ep in range(500000):
         score = 0
         state = env.reset()
 
@@ -278,6 +280,9 @@ if __name__ == "__main__":
             agent.save_checkpoint_running_score(i_ep)
 
         LOGGER.info('Ep {}\tLast score: {:.2f}\tMoving average score: {:.2f}'.format(i_ep, score, running_score))
+
+        writer.add_scalar('train_reward_score', score, i_ep)
+        writer.add_scalar('train_reward_running_score', running_score, i_ep)
 
         if i_ep % args.log_interval == 0:
             if args.vis:
