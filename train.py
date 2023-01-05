@@ -253,7 +253,7 @@ if __name__ == "__main__":
     best_episode_reward = 0
     best_episode_running_score = 0
     LOGGER.info("start training")
-    for i_ep in range(500000):
+    for i_ep in range(200000):
         score = 0
         state = env.reset()
 
