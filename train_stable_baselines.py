@@ -219,7 +219,11 @@ class CustomCallBack(BaseCallback):
             os.makedirs(self.save_path)
 
     def _on_training_start(self) -> None:
-        print('*' * 50, "LOCALS:", self.locals, '*' * 50)
+        print('-' * 50, "LOCALS:", self.locals, '-' * 50)
+        print('-' * 50, 'ENV:', self.training_env, '-' * 50)
+        print('-' * 50, 'ENV METADATA:', self.training_env.metadata, '-' * 50)
+        print('-' * 50, 'ENV WRAPPED:', self.training_env.env_is_wrapped, '-' * 50)
+        print('-' * 50, 'ENV METHOD:', self.training_env.env_method, '-' * 50)
         pass
 
     def _on_training_end(self) -> None:
@@ -228,7 +232,8 @@ class CustomCallBack(BaseCallback):
     def _on_step(self) -> bool:
         """Return False to abort training early."""
         # self.locals - gives local variables in a dictionary
-        print('*' * 50, "LOCALS:", self.locals, '*' * 50)
+        # print('*' * 50, "LOCALS:", self.locals, '*' * 50)
+        print('-' * 50, 'STEP:', self.n_calls, '-' * 50)
         return True
 
 # -----------------------------------------------------------------------------------
@@ -372,12 +377,13 @@ if __name__ == "__main__":
     )
     device = torch.device(f"cuda:{args.device_id}")
     print("-" * 25, "DEVICE:", device, "-" * 25)
+    entire_model_save_path = os.path.join('sb3_custom_callback_files', 'entire_model')
+    callback_instance = CustomCallBack(check_freq=1000, log_dir=entire_model_save_path)
     model = PPO(CustomActorCriticPolicy, env, policy_kwargs=policy_kwargs, verbose=1, device=device)
-    model.learn(total_timesteps=10000)
+    model.learn(total_timesteps=10000, callback=callback_instance)
     if os.path.exists('sb3_custom_callback_files'):
         os.makedirs('sb3_custom_callback_files')
     
-    entire_model_save_path = os.path.join('sb3_custom_callback_files', 'entire_model')
     if not os.path.exists(entire_model_save_path):
         os.makedirs(entire_model_save_path)       
     model.save(entire_model_save_path)
