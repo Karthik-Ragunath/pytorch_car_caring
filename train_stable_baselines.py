@@ -1,7 +1,8 @@
+'''
+python train_stable_baselines.py --device_id 1 --img-stack 3
+'''
 import argparse
-
 import numpy as np
-
 import gym
 from stable_baselines3 import PPO
 import torch
@@ -232,8 +233,9 @@ class CustomCallBack(BaseCallback):
     def _on_step(self) -> bool:
         """Return False to abort training early."""
         # self.locals - gives local variables in a dictionary
-        # print('*' * 50, "LOCALS:", self.locals, '*' * 50)
-        print('-' * 50, 'STEP:', self.num_timesteps, '-' * 50)
+        # print('-' * 50, 'STEP:', self.num_timesteps, '-' * 50)
+        if self.num_timesteps % 50 == 0:
+            self.training_env.reset()
         return True
 
 # -----------------------------------------------------------------------------------
@@ -386,8 +388,12 @@ if __name__ == "__main__":
         os.makedirs(entire_model_save_dir)
            
     model.save(entire_model_save_path)
+    # https://stable-baselines.readthedocs.io/en/master/guide/save_format.html
 
-    state_dict_save_path = os.path.join('sb3_custom_callback_files', 'state_dict')
-    if not os.path.exists(state_dict_save_path):
-        os.makedirs(state_dict_save_path)
-    torch.save(model.state_dict(), os.path.join(state_dict_save_path, 'ppo_net_params_model_trained.pkl'))
+    # state_dict_save_path = os.path.join('sb3_custom_callback_files', 'state_dict')
+    # if not os.path.exists(state_dict_save_path):
+    #     os.makedirs(state_dict_save_path)
+    # torch.save(model.state_dict(), os.path.join(state_dict_save_path, 'ppo_net_params_model_trained.pkl'))
+    '''
+    AttributeError: 'PPO' object has no attribute 'state_dict'
+    '''
