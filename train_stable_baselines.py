@@ -377,15 +377,14 @@ if __name__ == "__main__":
     )
     device = torch.device(f"cuda:{args.device_id}")
     print("-" * 25, "DEVICE:", device, "-" * 25)
-    entire_model_save_path = os.path.join('sb3_custom_callback_files', 'entire_model')
-    callback_instance = CustomCallBack(check_freq=1000, log_dir=entire_model_save_path)
+    entire_model_save_dir = os.path.join('sb3_custom_callback_files', 'entire_model')
+    entire_model_save_path = os.path.join('sb3_custom_callback_files', 'entire_model', 'ppo_model.zip')
+    callback_instance = CustomCallBack(check_freq=1000, log_dir=entire_model_save_dir)
     model = PPO(CustomActorCriticPolicy, env, policy_kwargs=policy_kwargs, verbose=1, device=device)
     model.learn(total_timesteps=10000, callback=callback_instance)
-    if os.path.exists('sb3_custom_callback_files'):
-        os.makedirs('sb3_custom_callback_files')
-    
-    if not os.path.exists(entire_model_save_path):
-        os.makedirs(entire_model_save_path)       
+    if not os.path.exists(entire_model_save_dir):
+        os.makedirs(entire_model_save_dir)
+           
     model.save(entire_model_save_path)
 
     state_dict_save_path = os.path.join('sb3_custom_callback_files', 'state_dict')
