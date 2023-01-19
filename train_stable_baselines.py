@@ -1,5 +1,5 @@
 '''
-python train_stable_baselines.py --device_id 1 --img-stack 3
+python train_stable_baselines.py --device_id 1 --img-stack 3 --render
 '''
 import argparse
 import numpy as np
