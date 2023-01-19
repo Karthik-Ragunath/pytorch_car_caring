@@ -233,7 +233,7 @@ class CustomCallBack(BaseCallback):
         """Return False to abort training early."""
         # self.locals - gives local variables in a dictionary
         # print('*' * 50, "LOCALS:", self.locals, '*' * 50)
-        print('-' * 50, 'STEP:', self.n_calls, '-' * 50)
+        print('-' * 50, 'STEP:', self.num_timesteps, '-' * 50)
         return True
 
 # -----------------------------------------------------------------------------------
