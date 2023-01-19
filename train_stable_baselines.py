@@ -219,6 +219,7 @@ class CustomCallBack(BaseCallback):
             os.makedirs(self.save_path)
 
     def _on_training_start(self) -> None:
+        print('*' * 50, "LOCALS:", self.locals, '*' * 50)
         pass
 
     def _on_training_end(self) -> None:
@@ -227,6 +228,7 @@ class CustomCallBack(BaseCallback):
     def _on_step(self) -> bool:
         """Return False to abort training early."""
         # self.locals - gives local variables in a dictionary
+        print('*' * 50, "LOCALS:", self.locals, '*' * 50)
         return True
 
 # -----------------------------------------------------------------------------------
@@ -368,17 +370,19 @@ if __name__ == "__main__":
         features_extractor_class=CustomCNN,
         features_extractor_kwargs=dict(features_dim=256),
     )
-    model = PPO(CustomActorCriticPolicy, env, policy_kwargs=policy_kwargs, verbose=1)
+    device = torch.device(f"cuda:{args.device_id}")
+    print("-" * 25, "DEVICE:", device, "-" * 25)
+    model = PPO(CustomActorCriticPolicy, env, policy_kwargs=policy_kwargs, verbose=1, device=device)
     model.learn(total_timesteps=10000)
-    if os.path.exists('sb3_files'):
-        os.makedirs('sb3_files')
+    if os.path.exists('sb3_custom_callback_files'):
+        os.makedirs('sb3_custom_callback_files')
     
-    entire_model_save_path = os.path.join('sb3_files', 'entire_model')
+    entire_model_save_path = os.path.join('sb3_custom_callback_files', 'entire_model')
     if not os.path.exists(entire_model_save_path):
         os.makedirs(entire_model_save_path)       
     model.save(entire_model_save_path)
 
-    state_dict_save_path = os.path.join('sb3_files', 'state_dict')
+    state_dict_save_path = os.path.join('sb3_custom_callback_files', 'state_dict')
     if not os.path.exists(state_dict_save_path):
         os.makedirs(state_dict_save_path)
     torch.save(model.state_dict(), os.path.join(state_dict_save_path, 'ppo_net_params_model_trained.pkl'))
