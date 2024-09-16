@@ -10,6 +10,8 @@ import torch.optim as optim
 from torch.distributions import Beta
 from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
 from utils import DrawLine
+import logging
+from torch.utils.tensorboard import SummaryWriter
 
 parser = argparse.ArgumentParser(description='Train a PPO agent for the CarRacing-v0')
 parser.add_argument('--gamma', type=float, default=0.99, metavar='G', help='discount factor (default: 0.99)')
@@ -20,10 +22,12 @@ parser.add_argument('--render', action='store_true', help='render the environmen
 parser.add_argument('--vis', action='store_true', help='use visdom')
 parser.add_argument(
     '--log-interval', type=int, default=10, metavar='N', help='interval between training status logs (default: 10)')
+parser.add_argument("--device_id", "-dev", type=int, default=0, required=False)
+parser.add_argument("--log_seed", type=int, default=0, required=False)
 args = parser.parse_args()
 
 use_cuda = torch.cuda.is_available()
-device = torch.device("cuda" if use_cuda else "cpu")
+device = torch.device(f"cuda:{args.device_id}" if use_cuda else "cpu")
 torch.manual_seed(args.seed)
 if use_cuda:
     torch.cuda.manual_seed(args.seed)
@@ -31,6 +35,12 @@ if use_cuda:
 transition = np.dtype([('s', np.float64, (args.img_stack, 96, 96)), ('a', np.float64, (3,)), ('a_logp', np.float64),
                        ('r', np.float64), ('s_', np.float64, (args.img_stack, 96, 96))])
 
+LOGGER= logging.getLogger()
+LOGGER.setLevel(logging.DEBUG) # or whatever
+handler = logging.FileHandler(f"ppo_logger_{args.log_seed}.log", 'w', 'utf-8')
+formatter = logging.Formatter('%(name)s %(message)s')
+handler.setFormatter(formatter)
+LOGGER.addHandler(handler)
 
 class Env():
     """
@@ -38,7 +48,10 @@ class Env():
     """
 
     def __init__(self):
-        self.env = gym.make('CarRacing-v2')
+        if args.render:
+            self.env = gym.make('CarRacing-v2', render_mode="human")
+        else:
+            self.env = gym.make('CarRacing-v2')
         # self.env.seed(args.seed)
         self.reward_threshold = self.env.spec.reward_threshold
 
@@ -47,7 +60,7 @@ class Env():
         self.av_r = self.reward_memory()
 
         self.die = False
-        img_rgb = self.env.reset()
+        img_rgb = self.env.reset()[0]
         img_gray = self.rgb2gray(img_rgb)
         self.stack = [img_gray] * args.img_stack  # four frames for decision
         return np.array(self.stack)
@@ -55,7 +68,7 @@ class Env():
     def step(self, action):
         total_reward = 0
         for i in range(args.action_repeat):
-            img_rgb, reward, die, _ = self.env.step(action)
+            img_rgb, reward, die, _, _ = self.env.step(action)
             # don't penalize "die state"
             if die:
                 reward += 100
@@ -175,7 +188,13 @@ class Agent():
         return action, a_logp
 
     def save_param(self):
-        torch.save(self.net.state_dict(), 'param/ppo_net_params_trained.pkl')
+        torch.save(self.net.state_dict(), 'param/ppo_net_params_model_trained.pkl')
+    
+    def save_checkpoint_reward(self, episode):
+        torch.save(self.net.state_dict(), f"param/reward_checkpoint_{episode}.pkl")
+
+    def save_checkpoint_running_score(self, episode):
+        torch.save(self.net.state_dict(), f"param/run_score_checkpoint_{episode}.pkl")
 
     def store(self, transition):
         self.buffer[self.counter] = transition
@@ -222,6 +241,7 @@ class Agent():
 
 
 if __name__ == "__main__":
+    writer = SummaryWriter()
     agent = Agent()
     env = Env()
     if args.vis:
@@ -230,7 +250,10 @@ if __name__ == "__main__":
     training_records = []
     running_score = 0
     state = env.reset()
-    for i_ep in range(100000):
+    best_episode_reward = 0
+    best_episode_running_score = 0
+    LOGGER.info("start training")
+    for i_ep in range(200000):
         score = 0
         state = env.reset()
 
@@ -247,6 +270,19 @@ if __name__ == "__main__":
             if done or die:
                 break
         running_score = running_score * 0.99 + score * 0.01
+
+        if score > best_episode_reward:
+            best_episode_reward = score
+            agent.save_checkpoint_reward(i_ep)
+
+        if running_score > best_episode_running_score:
+            best_episode_running_score = running_score
+            agent.save_checkpoint_running_score(i_ep)
+
+        LOGGER.info('Ep {}\tLast score: {:.2f}\tMoving average score: {:.2f}'.format(i_ep, score, running_score))
+
+        writer.add_scalar('train_reward_score', score, i_ep)
+        writer.add_scalar('train_reward_running_score', running_score, i_ep)
 
         if i_ep % args.log_interval == 0:
             if args.vis:
